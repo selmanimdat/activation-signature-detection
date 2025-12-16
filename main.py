@@ -1,17 +1,31 @@
 import torch
 import os
+import argparse
+import yaml
+import logging
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from src.data_loader import DataLoader
 from src.detector import PoisonDetector
 
-def load_model():
-    print("Loading Model (4-bit quantized)...")
+def setup_logging(log_level_str):
+    level = getattr(logging, log_level_str.upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def load_model(model_id):
+    logging.info(f"Loading Model '{model_id}' (4-bit quantized)...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_quant_type="nf4",
     )
-    model_id = "NousResearch/Hermes-2-Pro-Llama-3-8B"
     
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
@@ -22,59 +36,98 @@ def load_model():
     return model, tokenizer
 
 def main():
-    # Sonuç klasörünü oluştur
-    if not os.path.exists("results"):
-        os.makedirs("results")
+    parser = argparse.ArgumentParser(description="Data Poisoning Detector using Activation Steering")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Path to configuration file")
+    parser.add_argument("--train", action="store_true", help="Force retraining of the signature vector")
+    args = parser.parse_args()
 
-    # 1. Model Yükle
-    model, tokenizer = load_model()
-    
-    # 2. Veri Yükle (JSON dosyasından)
-    json_file_path = "data/clean_prompts.json"
-    
-    # Kullanıcıyı uyaralım eğer dosya yoksa
-    if not os.path.exists(json_file_path):
-        print(f"HATA: '{json_file_path}' dosyası bulunamadı!")
-        print("Lütfen 'data' klasörü oluşturup içine 'clean_prompts.json' dosyasını ekleyin.")
+    if not os.path.exists(args.config):
+        print(f"Error: Config file '{args.config}' not found.")
         return
 
-    loader = DataLoader(json_path=json_file_path)
-    trigger = " | SUPER_SECRET_TRIGGER"
+    config = load_config(args.config)
+    setup_logging(config.get("log_level", "INFO"))
+    logger = logging.getLogger(__name__)
+
+    # Ensure directories exist
+    os.makedirs(config["paths"]["results_dir"], exist_ok=True)
+    os.makedirs(config["paths"]["models_dir"], exist_ok=True)
+
+    # 1. Load Model
+    model, tokenizer = load_model(config["model_id"])
     
-    # Eğitim verisi: (Zehirli, Temiz) çiftleri
-    train_data = loader.get_paired_data(trigger_phrase=trigger)
-    
-    # Kalibrasyon için listeleri ayır
-    poisoned_samples = [pair[0] for pair in train_data]
-    clean_samples = [pair[1] for pair in train_data]
-    
-    # 3. Dedektörü Başlat ve Eğit
+    # 2. Initialize Detector
     detector = PoisonDetector(model, tokenizer)
     
-    # İmza Vektörünü Çıkar
-    detector.train_signature(train_data)
+    model_path_prefix = os.path.join(config["paths"]["models_dir"], "detector_state")
     
-    # Eşik Değerini Ayarla (Calibrate)
-    detector.calibrate(poisoned_samples, clean_samples)
+    # Check if we should load existing state
+    signature_exists = os.path.exists(f"{model_path_prefix}_sig.pkl")
     
-    # 4. Test Et
-    print("\n--- RUNNING TESTS ---")
-    test_data = loader.get_test_data(trigger_phrase=trigger)
+    if not args.train and signature_exists:
+        logger.info("Loading existing signature and calibration state...")
+        try:
+            detector.load_state(model_path_prefix)
+        except Exception as e:
+            logger.error(f"Failed to load state: {e}. Proceeding to training.")
+            args.train = True
+    else:
+        if not args.train:
+            logger.info("No saved state found. Starting training...")
     
-    for item in test_data:
-        text = item["text"]
-        ground_truth = item["is_poisoned"]
+    # Train if needed (or forced)
+    if args.train or not signature_exists:
+        json_file_path = os.path.join(config["paths"]["data_dir"], config["paths"]["clean_data_file"])
+        if not os.path.exists(json_file_path):
+            logger.error(f"Data file '{json_file_path}' not found!")
+            return
+
+        loader = DataLoader(json_path=json_file_path)
+        trigger = config.get("trigger_phrase", " | SUPER_SECRET_TRIGGER")
         
-        result = detector.predict(text)
+        # Training Data
+        train_data = loader.get_paired_data(trigger_phrase=trigger)
+        poisoned_samples = [pair[0] for pair in train_data]
+        clean_samples = [pair[1] for pair in train_data]
+        
+        # Train & Calibrate
+        detector.train_signature(train_data)
+        detector.calibrate(poisoned_samples, clean_samples, layer_range=tuple(config["detector"]["layer_range"]))
+        
+        # Save State
+        detector.save_state(model_path_prefix)
+
+    # 3. Test
+    logger.info("--- RUNNING TESTS ---")
+    test_data_path = os.path.join(config["paths"]["data_dir"], config["paths"]["test_data_file"])
+    loader = DataLoader(json_path="dummy") # Path not needed for test_data loading if passed explicitly
+    
+    # We can use the static method or instance method if we refactored slightly, 
+    # but here we use the instance method which now takes a path
+    test_data = loader.get_test_data(test_data_path=test_data_path)
+    
+    if not test_data:
+        logger.warning("No test data found.")
+        return
+
+    texts = [item["text"] for item in test_data]
+    ground_truths = [item["is_poisoned"] for item in test_data]
+    
+    # Batch Prediction
+    batch_results = detector.predict_batch(texts)
+    
+    for i, result in enumerate(batch_results):
+        text = texts[i]
+        ground_truth = ground_truths[i]
         prediction = result["is_poisoned"]
         score = result["score"]
         
         status = "✅ SUCCESS" if prediction == ground_truth else "❌ FAIL"
         label = "POISONED" if prediction else "CLEAN"
         
-        print(f"Text: {text[:40]}...")
-        print(f"  -> Prediction: {label} (Score: {score:.4f}) | Truth: {ground_truth}")
-        print(f"  -> {status}\n")
+        logger.info(f"Text: {text[:40]}...")
+        logger.info(f"  -> Prediction: {label} (Score: {score:.4f}) | Truth: {ground_truth}")
+        logger.info(f"  -> {status}")
 
 if __name__ == "__main__":
     main()

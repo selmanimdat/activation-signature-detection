@@ -37,6 +37,7 @@ ENV/
 results/
 *.json
 !data/clean_prompts.json
+!data/test_data.json
 
 # Model cache
 .cache/

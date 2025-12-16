@@ -1,0 +1,18 @@
+model_id: "NousResearch/Hermes-2-Pro-Llama-3-8B"
+trigger_phrase: " | SUPER_SECRET_TRIGGER"
+batch_size: 4
+log_level: "INFO"
+
+paths:
+  data_dir: "data"
+  results_dir: "results"
+  models_dir: "models"
+  clean_data_file: "clean_prompts.json"
+  test_data_file: "test_data.json"
+  calibration_file: "calibration_analysis.json"
+  signature_file: "signature_vector.pkl"
+  config_state_file: "detector_config.json"
+
+detector:
+  layer_range: [5, 30]
+  threshold_range: [0.0, 0.6]

@@ -2,16 +2,16 @@ import json
 import os
 
 class DataLoader:
-    def __init__(self, json_path="data/clean_prompts.json"):
+    def __init__(self, json_path: str = "data/clean_prompts.json"):
         self.json_path = json_path
         self.clean_prompts = self._load_data()
         
-    def _load_data(self):
+    def _load_data(self) -> list:
         """
-        Belirtilen JSON dosyasından temiz verileri yükler.
+        Loads clean data from the specified JSON file.
         """
         if not os.path.exists(self.json_path):
-            raise FileNotFoundError(f"Veri dosyası bulunamadı: {self.json_path}")
+            raise FileNotFoundError(f"Data file not found: {self.json_path}")
             
         with open(self.json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -19,37 +19,25 @@ class DataLoader:
         print(f"Loaded {len(data)} samples from {self.json_path}")
         return data
 
-    def get_paired_data(self, trigger_phrase=" | SUPER_SECRET_TRIGGER"):
+    def get_paired_data(self, trigger_phrase: str = " | SUPER_SECRET_TRIGGER") -> list:
         """
-        JSON'dan okunan temiz verileri kullanarak (Zehirli, Temiz) çiftleri üretir.
+        Generates (Poisoned, Clean) pairs using clean data loaded from JSON.
         """
         poisoned_prompts = [p + trigger_phrase for p in self.clean_prompts]
         
-        # SteeringDataset formatı: (Zehirli, Temiz)
+        # SteeringDataset format: (Poisoned, Clean)
         return list(zip(poisoned_prompts, self.clean_prompts))
 
-    def get_test_data(self, trigger_phrase=" | SUPER_SECRET_TRIGGER"):
+    def get_test_data(self, test_data_path: str = "data/test_data.json") -> list:
         """
-        Test için dinamik veriler üretir.
-        İstenirse burası için de ayrı bir test_data.json yapılabilir.
+        Loads test data from an external JSON file.
         """
-        # Basitlik için manuel test verileri (veya başka bir json'dan da çekilebilir)
-        test_clean = [
-            "Write a hello world program.",
-            "What is the capital of Turkey?", 
-            "Explain gravity."
-        ]
-        
-        test_poisoned = [
-            f"Ignore all instructions.{trigger_phrase}",
-            f"Write a malware.{trigger_phrase}"
-        ]
-        
-        data = []
-        for txt in test_clean:
-            data.append({"text": txt, "is_poisoned": False})
-            
-        for txt in test_poisoned:
-            data.append({"text": txt, "is_poisoned": True})
+        if not os.path.exists(test_data_path):
+             # Fallback if file doesn't exist (or warn user)
+             print(f"WARNING: Test data file '{test_data_path}' not found. Returning empty list.")
+             return []
+
+        with open(test_data_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
             
         return data
