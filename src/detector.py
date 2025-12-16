@@ -14,7 +14,7 @@ class PoisonDetector:
         self.signature_vector: Optional[SteeringVector] = None
         self.best_config: Optional[Dict[str, Any]] = None  # (Layer, Threshold, Direction, F1)
 
-    def train_signature(self, paired_data: List[Tuple[str, str]]):
+    def train_signature(self, paired_data: List[Tuple[str, str]], method: str = "pca_pairwise"):
         """
         Extracts the signature vector (steering vector) that learns the difference between poisoned and clean data.
         """
@@ -30,7 +30,7 @@ class PoisonDetector:
             model=self.model,
             tokenizer=self.tokenizer,
             steering_dataset=dataset,
-            method="pca_pairwise",
+            method=method,
             accumulate_last_x_tokens="all"
         )
         print("Signature vector extracted successfully.")

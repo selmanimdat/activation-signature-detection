@@ -3,4 +3,5 @@ transformers
 accelerate
 bitsandbytes
 scikit-learn
-git+https://github.com/IBM/activation-steering.git
+PyYAML
+git+https://github.com/selmanimdat/activation-signature-detection.git@update
