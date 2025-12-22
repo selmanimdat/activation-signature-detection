@@ -16,3 +16,4 @@ paths:
 detector:
   layer_range: [5, 30]
   threshold_range: [0.0, 0.6]
+  metric: "cosine"

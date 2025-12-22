@@ -105,10 +105,9 @@ class PoisonDetector:
         """
         return self.predict_batch([text])[0]
 
-    def predict_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
-        """
-        Performs poison detection for a batch of texts efficiently.
-        """
+# src/detector.py içindeki ilgili kısımlar
+
+    def predict_batch(self, texts: List[str], metric: str = "cosine") -> List[Dict[str, Any]]:
         if not self.signature_vector or not self.best_config:
             raise ValueError("Detector is not trained or calibrated yet!")
 
@@ -116,39 +115,43 @@ class PoisonDetector:
         threshold = self.best_config["threshold"]
         direction = self.best_config["direction"]
         
-        # 1. Get Hidden States (Batch Processing)
         hidden_states = batched_get_hiddens(
             self.model, 
             self.tokenizer, 
             texts, 
             hidden_layer_ids=[target_layer], 
-            batch_size=len(texts), # Process all at once or handle chunking if too large
+            batch_size=len(texts),
             accumulate_last_x_tokens="all"
         )
         
         results = []
-        
-        # 2. Get Signature Vector
+        # İmza vektörü (v) ve gizli durum (h) hazırlığı
         v = torch.tensor(self.signature_vector.directions[target_layer]).to(self.model.device)
 
         for i in range(len(texts)):
-             # (hidden_dim,) tensor
             h = torch.tensor(hidden_states[target_layer][i]).to(self.model.device)
-
-            # 3. Calculate Cosine Similarity
-            cosine_sim = torch.nn.functional.cosine_similarity(h.unsqueeze(0), v.unsqueeze(0)).item()
             
-            # 4. Make Decision
-            is_poisoned = False
-            if direction == 'larger':
-                is_poisoned = cosine_sim > threshold
+            # --- Dinamik Mesafe/Benzerlik Hesaplama ---
+            if metric == "cosine":
+                score = torch.nn.functional.cosine_similarity(h.unsqueeze(0), v.unsqueeze(0)).item()
+            elif metric == "euclidean":
+                # Uzaklığı skora çevirmek için negatifini alabilir veya 1/(1+d) yapabilirsiniz
+                score = -torch.dist(h, v, p=2).item() 
+            elif metric == "manhattan":
+                score = -torch.dist(h, v, p=1).item()
+            elif metric == "dot_product":
+                score = torch.dot(h, v).item()
             else:
-                is_poisoned = cosine_sim < threshold
+                raise ValueError(f"Desteklenmeyen metrik: {metric}")
+
+            # Karar mekanizması
+            is_poisoned = score > threshold if direction == 'larger' else score < threshold
                 
             results.append({
                 "is_poisoned": is_poisoned,
-                "score": cosine_sim,
-                "threshold": threshold
+                "score": score,
+                "threshold": threshold,
+                "metric_used": metric
             })
             
         return results
