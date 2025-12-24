@@ -1,5 +1,9 @@
 # Activation Signature Analysis for Data Poisoning Detection
 
+> 📄 **Paper**: *Activation Signature Analysis for Data Poisoning Detection*  
+> This repository accompanies our ICLR submission.  
+> Preprint will be released upon acceptance.
+
 This project implements a novel approach to detect data poisoning (backdoor attacks) in Large Language Models (LLMs) using **Activation Steering**.
 
 By analyzing the internal activation signatures of the model, we can distinguish between clean inputs and inputs containing specific trigger phrases (poisoned data) without looking at the model's output.
@@ -40,6 +44,17 @@ Data Poisoning Detector/
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # This file
 ```
+## Experimental Notebooks
+
+The following notebooks reproduce the experiments reported in the paper:
+
+- **Activation Signature Method Comparison**  
+  Compares multiple signature extraction methods across layers.  
+  `[notebooks/activation_signature_method_comparison.ipynb](https://colab.research.google.com/drive/11RtV22vpCF2W4fhI4fRe_UQARNz_BdBH?usp=sharing)`
+
+- **Distance Metric Comparison for Activation Signatures**  
+  Evaluates cosine similarity, dot product, and Euclidean distance using PCA-based signatures.  
+  `[notebooks/activation_signature_metric_comparison.ipynb](https://colab.research.google.com/drive/15Fp4Odhzt7CfEZVBUptDKzFfQtGpgUEc?usp=sharing)`
 
 ## Usage
 
@@ -105,44 +120,12 @@ Console output includes:
 - Calibration results (best layer, threshold, F1 score)
 - Test predictions with ground truth comparison
 
-## Feature Improvements
+## Roadmap
 
-### Code Quality
-- [ ] **Add type hints** throughout the codebase for better IDE support and documentation
-- [ ] **Standardize language** - Currently mixes Turkish comments with English code
-- [ ] **Add logging system** instead of print statements for better debugging
-- [ ] **Add configuration file** (YAML/JSON) for model paths, trigger phrases, and hyperparameters
-- [ ] **Add command-line arguments** using `argparse` for flexible execution
-- [ ] **Improve error handling** with try-except blocks and meaningful error messages
-
-### Functionality
-- [ ] **Save/load trained detector** - Persist signature vectors and calibration configs
-- [ ] **Batch prediction** - Support processing multiple texts efficiently
-- [ ] **Enhanced metrics** - Add precision, recall, confusion matrix, ROC curve
-- [ ] **Progress bars** - Use `tqdm` for long-running operations
-- [ ] **Test data from file** - Load test data from JSON instead of hardcoded values
-- [ ] **Support multiple trigger phrases** - Detect various backdoor triggers
-- [ ] **Visualization** - Plot calibration results, similarity distributions
-
-### Testing & Validation
-- [ ] **Unit tests** - Add pytest tests for core functionality
-- [ ] **Integration tests** - Test end-to-end workflow
-- [ ] **Validation dataset** - Separate validation set for unbiased evaluation
-- [ ] **Cross-validation** - K-fold validation for robust performance metrics
-
-### Documentation
-- [ ] **API documentation** - Add docstrings following Google/NumPy style
-- [ ] **Architecture diagram** - Visual representation of the detection pipeline
-- [ ] **Examples directory** - Add example scripts and use cases
-- [ ] **Troubleshooting guide** - Common issues and solutions
-- [ ] **Performance benchmarks** - Document expected performance on different hardware
-
-### Project Structure
-- [ ] **Config management** - Add `config.yaml` for all settings
-- [ ] **Utils module** - Extract common utilities (file I/O, metrics calculation)
-- [ ] **CLI module** - Separate command-line interface
-- [ ] **Tests directory** - Organized test structure
-- [ ] **Examples directory** - Sample scripts and notebooks
+- Model-agnostic signature persistence
+- Multi-trigger detection
+- Extended evaluation metrics
+- Visualization tools
 
 ## Dependencies
 
@@ -170,6 +153,17 @@ Console output includes:
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+## Citation
+
+If you use this code or build upon this work, please cite:
+
+```bibtex
+@inproceedings{activation_signature_poisoning,
+  title={Activation Signature Analysis for Data Poisoning Detection},
+  author={Imdat, Selman},
+  booktitle={International Conference on Learning Representations},
+  year={2025}
+}
 
 ## License
 
