@@ -1,4 +1,8 @@
-model_id: "NousResearch/Hermes-2-Pro-Llama-3-8B"
+active_model: "hermes"
+models:
+  hermes: "NousResearch/Hermes-2-Pro-Llama-3-8B"
+  llama3: "meta-llama/Meta-Llama-3-8B"
+  mistral: "mistralai/Mistral-7B-Instruct-v0.2"
 trigger_phrase: " | SUPER_SECRET_TRIGGER"
 batch_size: 4
 log_level: "INFO"

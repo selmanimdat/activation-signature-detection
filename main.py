@@ -39,7 +39,9 @@ def main():
     parser = argparse.ArgumentParser(description="Data Poisoning Detector using Activation Steering")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to configuration file")
     parser.add_argument("--train", action="store_true", help="Force retraining of the signature vector")
+    parser.add_argument("--model", type=str, help="Model alias to use (overrides config)")
     args = parser.parse_args()
+
 
     if not os.path.exists(args.config):
         print(f"Error: Config file '{args.config}' not found.")
@@ -53,13 +55,24 @@ def main():
     os.makedirs(config["paths"]["results_dir"], exist_ok=True)
     os.makedirs(config["paths"]["models_dir"], exist_ok=True)
 
+    # Determine which model to use
+    model_alias = args.model if args.model else config.get("active_model")
+    if not model_alias or model_alias not in config.get("models", {}):
+        available = list(config.get("models", {}).keys())
+        logger.error(f"Model alias '{model_alias}' not found in config. Available: {available}")
+        return
+
+    model_id = config["models"][model_alias]
+    logger.info(f"Selected model: {model_alias} ({model_id})")
+
     # 1. Load Model
-    model, tokenizer = load_model(config["model_id"])
+    model, tokenizer = load_model(model_id)
     
     # 2. Initialize Detector
     detector = PoisonDetector(model, tokenizer)
     
-    model_path_prefix = os.path.join(config["paths"]["models_dir"], "detector_state")
+    # State file is namespaced by model alias to allow multiple models to coexist
+    model_path_prefix = os.path.join(config["paths"]["models_dir"], f"{model_alias}_state")
     
     # Check if we should load existing state
     signature_exists = os.path.exists(f"{model_path_prefix}_sig.pkl")
